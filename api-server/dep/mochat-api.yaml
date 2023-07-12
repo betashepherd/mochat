@@ -1,18 +1,14 @@
-
 ---
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
   namespace: mochat
-  name: mcapi 
-  labels:
-    app: mcapi
+  name: mcapi
 spec:
-  replicas: 1
-  serviceName: mcapi
   selector:
     matchLabels:
       app: mcapi
+  replicas: 1
   template:
     metadata:
       labels:

@@ -89,8 +89,8 @@ data:
     }
 
 ---
-kind: Deployment
 apiVersion: apps/v1
+kind: Deployment
 metadata:
   namespace: mochat
   name: dashboard 
@@ -106,7 +106,7 @@ spec:
     spec:
       containers:
         - name: dashboard
-          image: ccr.ccs.tencentyun.com/fastapp/mochat-dashboard:v1.0.0.534.86f3139
+          image: ccr.ccs.tencentyun.com/fastapp/mochat-dashboard:v1.0.0.532.789ac69
           ports:
             - containerPort: 80
           volumeMounts:
