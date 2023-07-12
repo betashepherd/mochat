@@ -1,0 +1,167 @@
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  namespace: mochat
+  name: nginx-config
+data:
+  nginx.conf: |
+    worker_processes auto;
+    worker_cpu_affinity auto;
+    worker_rlimit_nofile 51200;
+    events {
+        use epoll;
+        worker_connections 51200;
+        multi_accept off;
+        accept_mutex off;
+    }
+    http {
+      include       mime.types;
+      default_type  application/octet-stream;
+
+      server_names_hash_bucket_size 128;
+      client_header_buffer_size 32k;
+      large_client_header_buffers 4 32k;
+      client_max_body_size 50m;
+
+      sendfile on;
+      sendfile_max_chunk 512k;
+      tcp_nopush on;
+
+      keepalive_timeout 60;
+
+      tcp_nodelay on;
+
+      fastcgi_connect_timeout 300;
+      fastcgi_send_timeout 300;
+      fastcgi_read_timeout 300;
+      fastcgi_buffer_size 64k;
+      fastcgi_buffers 4 64k;
+      fastcgi_busy_buffers_size 128k;
+      fastcgi_temp_file_write_size 256k;
+
+      gzip on;
+      gzip_min_length  1k;
+      gzip_buffers     4 16k;
+      gzip_http_version 1.1;
+      gzip_comp_level 2;
+      gzip_types     text/plain application/javascript application/x-javascript text/javascript text/css application/xml application/xml+rss;
+      gzip_vary on;
+      gzip_proxied   expired no-cache no-store private auth;
+      gzip_disable   "MSIE [1-6]\.";
+
+      #limit_conn_zone $binary_remote_addr zone=perip:10m;
+      ##If enable limit_conn_zone,add "limit_conn perip 10;" to server section.
+
+      server_tokens off;
+
+      server {
+        listen 80 default_server;
+        #listen [::]:80 default_server;
+        add_header X-Frame-Options "SAMEORIGIN";
+        add_header X-XSS-Protection "1; mode=block";
+        add_header X-Content-Type-Options "nosniff";
+        root /var/www/html/dist;
+        index index.html;
+        server_name mochat.bgton.cn;
+        rewrite_log off;
+        
+        location / {
+            index index.html;
+            try_files $uri $uri/ /index.html;  
+        }
+        
+        location /authRedirect {
+            proxy_set_header Host $http_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            # http时使用下面的配置
+            proxy_cookie_path / "/; HttpOnly; SameSite=strict";
+            # https时使用下面的配置
+            # proxy_cookie_path / "/; secure; HttpOnly; SameSite=strict";
+        
+            proxy_pass http://mcapi.mochat:9501/dashboard/officialAccount/authRedirect/;
+        }   
+
+        location = /favicon.ico { access_log off; log_not_found off; }
+        location = /robots.txt  { access_log off; log_not_found off; }
+      }
+    }
+
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  namespace: mochat
+  name: dashboard 
+spec:
+  selector:
+    matchLabels:
+      app: dashboard
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: dashboard
+    spec:
+      containers:
+        - name: dashboard
+          image: ccr.ccs.tencentyun.com/fastapp/mochat-dashboard:v1.0.0.534.86f3139
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              name: nginx-config
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - sh
+                  - '-c'
+                  - sleep 5 && /usr/sbin/nginx -s quit
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: nginx-config
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  namespace: mochat
+  name: dashboard
+spec:
+  selector:
+    app: dashboard
+  type: NodePort
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 32080
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: mochat
+  name: dashboard-ingress
+  annotations:
+    kubernetes.io/ingress.class: "traefik"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - secretName: dashboard-tls
+      hosts:
+        - mochat.bgton.cn
+  rules:
+    - host: mochat.bgton.cn
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dashboard
+                port:
+                  number: 80

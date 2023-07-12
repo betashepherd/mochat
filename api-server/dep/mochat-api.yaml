@@ -1,0 +1,87 @@
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  namespace: mochat
+  name: mcapi 
+  labels:
+    app: mcapi
+spec:
+  replicas: 1
+  serviceName: mcapi
+  selector:
+    matchLabels:
+      app: mcapi
+  template:
+    metadata:
+      labels:
+        app: mcapi
+    spec:
+      containers:
+        - name: mcapi
+          env:
+            - name: APP_ENV
+              value: "production"
+          image: ccr.ccs.tencentyun.com/fastapp/mochat:v1.0.0.537.ce2637a
+          imagePullPolicy: IfNotPresent
+          command:
+            - php
+            - /opt/www/bin/hyperf.php
+            - start
+          volumeMounts:
+            - name: data-vol
+              mountPath: /opt/www/storage/upload
+            - name: logs-vol
+              mountPath: /var/www-log
+      volumes:
+        - name: data-vol
+          hostPath:
+            path: /data/mochat/static
+        - name: logs-vol
+          hostPath:
+            path: /data/logs/mochat
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: mcapi 
+  namespace: mochat
+  name: mcapi
+spec:
+  type: NodePort
+  ports:
+    - name: "tcp"
+      port: 9501
+      targetPort: 9501
+      nodePort: 30501
+  selector:
+    app: mcapi
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: mochat
+  name: mcapi-ingress
+  annotations:
+    kubernetes.io/ingress.class: "traefik"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - secretName: mcapi-tls
+      hosts:
+        - mcapi.bgton.cn
+  rules:
+    - host: mcapi.bgton.cn
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mcapi
+                port:
+                  number: 80
