@@ -21,7 +21,6 @@ config/autoload/menu.php
 .user.ini
 404.html
 
-# txt
 /*.txt
 public/.user.ini
 public/*.txt
