@@ -18,7 +18,7 @@ spec:
         - name: mcapi
           env:
             - name: APP_ENV
-              value: "production"
+              value: "dev"
           image: ccr.ccs.tencentyun.com/fastapp/mochat:v1.0.0.533.c8def4d
           imagePullPolicy: IfNotPresent
           command:
